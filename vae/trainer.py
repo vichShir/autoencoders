@@ -1,9 +1,11 @@
 # Adapted code from: https://github.com/lyeoni/pytorch-mnist-VAE
 
 import torch
+import pandas as pd
 import numpy as np
 import os
 import random
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
@@ -119,18 +121,49 @@ class Trainer:
         print(f'Training saved at {model_ckpt_path}.')
 
     def fit(self, max_epochs=30, img_size=728):
+        self.track_losses = []
         for epoch in range(self.start_epoch, max_epochs+1):
-            self.run_epoch(epoch, img_size)
+            epoch_loss = self.run_epoch(epoch, img_size)
+            self.track_losses.append(epoch_loss)
             if epoch % self.save_every == 0:
                 self.save_checkpoint(epoch)
 
     def run_epoch(self, epoch, img_size):
         self.model.train()
-        train_loss = 0
-        for batch_idx, (img_batch, _) in enumerate(tqdm(self.trainloader)):
+
+        # track loss
+        loss_list = pd.DataFrame()
+
+        # mini-batch loop
+        for img_batch, _ in tqdm(self.trainloader):
+            # run mini-batch
             img_batch = img_batch.to(self.device)
-            train_loss += self.run_batch(img_batch, img_size)
-        print('====> Epoch: {} Average loss: {:.4f}'.format(epoch, train_loss / len(self.trainloader.dataset)))
+            train_loss = self.run_batch(img_batch, img_size)
+
+            # append loss
+            loss_list = pd.concat(
+                [
+                    loss_list,
+                    pd.DataFrame({
+                        'Epoch': [epoch],
+                        'Loss': [train_loss]
+                    })
+                ], 
+                axis=0
+            )
+
+        # save running loss per epoch
+        loss_list.to_csv(
+            os.path.join(
+                self.save_checkpoint_path, f'training_loss_epoch{epoch}.csv'
+            ),
+            index=False
+        )
+
+        # debug
+        print('====> Epoch: {} Average loss: {:.4f}'.format(epoch, loss_list['Loss'].mean()))
+
+        return loss_list
 
     def run_batch(self, img_batch, img_size):
         self.optimizer.zero_grad()
@@ -139,7 +172,7 @@ class Trainer:
         # plt.imshow(data[random.randint(0, len(data))].cpu().numpy()); plt.show()
         
         recon_batch, mu, log_var = self.model(img_batch)
-        loss = self.loss_fn(recon_batch, img_batch, mu, log_var, img_size)
+        loss = self.loss_fn(recon_batch, img_batch, mu, log_var, img_size) / len(img_batch)
 
         # plt.imshow(recon_batch[random.randint(0, len(img_batch))].view(64, 64, 3).detach().cpu().numpy()); plt.show()
         
@@ -147,3 +180,25 @@ class Trainer:
         self.optimizer.step()
             
         return loss.item()
+    
+    def plot_running_loss(self, save=True):
+        df = pd.concat(self.track_losses, axis=0).reset_index(drop=True)
+
+        # running loss
+        plt.plot(df['Loss'].to_numpy())
+
+        # average loss per epoch
+        last_indexes = [df[df['Epoch'] == epoch].last_valid_index() for epoch in df['Epoch'].unique()]
+        loss_avgs = [df[df['Epoch'] == epoch]['Loss'].mean() for epoch in df['Epoch'].unique()]
+        plt.plot(np.array(last_indexes), np.array(loss_avgs), 'ro-')
+        for idx, epoch in enumerate(df['Epoch'].unique()):
+            plt.text(last_indexes[idx]-100, loss_avgs[idx]+10, f'Avg Epoch{epoch}', fontsize=6)
+
+        plt.title(f'Running loss for {str(self.model)} using {self.dataset_name}.')
+        plt.xlabel('Mini-Batch')
+        plt.ylabel('Loss')
+
+        if save:
+            plt.savefig(os.path.join(self.save_checkpoint_path, 'training_running_loss.png'), bbox_inches='tight')
+
+        plt.show()

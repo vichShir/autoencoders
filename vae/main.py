@@ -50,6 +50,7 @@ def main(args):
         args.seed,
     )
     trainer.fit(args.max_epochs, args.img_size)
+    trainer.plot_running_loss(save=True)
 
     n_samples = 64
     with torch.no_grad():
