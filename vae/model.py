@@ -5,9 +5,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class VAE(nn.Module):
+class LinearVAE(nn.Module):
     def __init__(self, img_size, x_dim, h_dim1, h_dim2, z_dim):
-        super(VAE, self).__init__()
+        super(LinearVAE, self).__init__()
 
         self.img_size = img_size
         
