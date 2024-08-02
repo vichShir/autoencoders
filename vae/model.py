@@ -45,3 +45,6 @@ class LinearVAE(nn.Module):
         z = self.sampling(mu, log_var)
         recon_x = self.decoder(z)
         return recon_x, mu, log_var
+    
+    def __str__(self):
+        return 'LinearVAE'

@@ -10,6 +10,9 @@ def load_args():
     parser.add_argument('--batch_size', type=int, default=32, required=False)
     parser.add_argument('--lr', type=float, default=1e-3, required=False)
     parser.add_argument('--latent_size', type=int, default=768, required=False)
+    parser.add_argument('--save_checkpoint_path', type=str, default='./', required=True)
+    parser.add_argument('--load_checkpoint_path', type=str, default='./', required=False)
+    parser.add_argument('--save_every', type=int, default=5, required=False)
     
     args = parser.parse_args()
     return args

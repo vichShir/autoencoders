@@ -6,3 +6,6 @@ python main.py \
     --batch_size 128 \
     --lr 1e-4 \
     --latent_size 32 \
+    --save_checkpoint_path './linear_vae_checkpoints' \
+    --load_checkpoint_path './linear_vae_checkpoints/LinearVAE_MNIST_5.pt' \
+    --save_every 5

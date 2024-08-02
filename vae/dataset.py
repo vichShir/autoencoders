@@ -32,6 +32,9 @@ class DatasetLoader:
     def load(self):
         pass
 
+    def __str__(self):
+        pass
+
 
 class MNIST(DatasetLoader):
 
@@ -50,6 +53,9 @@ class MNIST(DatasetLoader):
         test_loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
         return train_loader, test_loader
     
+    def __str__(self):
+        return 'MNIST'
+    
 
 class TinyHero(DatasetLoader):
 
@@ -67,3 +73,6 @@ class TinyHero(DatasetLoader):
         train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
         test_loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
         return train_loader, test_loader
+    
+    def __str__(self):
+        return 'TinyHero'
