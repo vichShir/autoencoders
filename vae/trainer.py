@@ -85,7 +85,7 @@ class Trainer:
             print('Optimizer states restored.')
 
         # set seed
-        self.set_seed(ckpt_dict['seed_value'])
+        self._set_seed(ckpt_dict['seed_value'])
 
         # load RNG states
         rng_dict = ckpt_dict['rng_states']
@@ -220,9 +220,9 @@ class Trainer:
         sample_idx = random.randint(0, N)
         fig, (ax1, ax2) = plt.subplots(1, 2)
         fig.suptitle(f'Comparing Real vs Reconstructed images from sample at {sample_idx}.')
-        ax1.imshow(real_images[sample_idx].view(64, 64).cpu().numpy())
+        ax1.imshow(real_images[sample_idx].view(self.W, self.H).cpu().numpy(), cmap='gray')
         ax1.set_title('Real')
-        ax2.imshow(recon_images[sample_idx].view(64, 64).cpu().numpy())
+        ax2.imshow(recon_images[sample_idx].view(self.W, self.H).cpu().numpy(), cmap='gray')
         ax2.set_title('Reconstructed')
         plt.savefig(os.path.join(self.save_checkpoint_path, f'log_image_epoch{epoch}.png'), bbox_inches='tight')
         plt.close(fig)
