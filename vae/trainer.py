@@ -21,6 +21,7 @@ class Trainer:
                  save_checkpoint_path='',
                  load_checkpoint_path='',
                  save_every=5,
+                 save_training_loss_per_epoch=True,
                  seed=0,
                  ):
         self.model = model
@@ -45,6 +46,7 @@ class Trainer:
         self.save_checkpoint_path = save_checkpoint_path
         self.load_checkpoint_path = load_checkpoint_path
         self.save_every = save_every
+        self.save_training_loss_per_epoch = save_training_loss_per_epoch
         if os.path.exists(self.load_checkpoint_path):
             print(f'Restoring checkpoint from {self.load_checkpoint_path}...')
             self.load_checkpoint()
@@ -125,7 +127,7 @@ class Trainer:
         for epoch in range(self.start_epoch, max_epochs+1):
             epoch_loss = self.run_epoch(epoch, img_size)
             self.track_losses.append(epoch_loss)
-            if epoch % self.save_every == 0:
+            if epoch % self.save_every == 0 or epoch == max_epochs:
                 self.save_checkpoint(epoch)
 
     def run_epoch(self, epoch, img_size):
@@ -153,12 +155,13 @@ class Trainer:
             )
 
         # save running loss per epoch
-        loss_list.to_csv(
-            os.path.join(
-                self.save_checkpoint_path, f'training_loss_epoch{epoch}.csv'
-            ),
-            index=False
-        )
+        if self.save_training_loss_per_epoch:
+            loss_list.to_csv(
+                os.path.join(
+                    self.save_checkpoint_path, f'training_loss_epoch{epoch}.csv'
+                ),
+                index=False
+            )
 
         # debug
         print('====> Epoch: {} Average loss: {:.4f}'.format(epoch, loss_list['Loss'].mean()))
@@ -185,6 +188,7 @@ class Trainer:
         df = pd.concat(self.track_losses, axis=0).reset_index(drop=True)
 
         # running loss
+        plt.figure(figsize=(16, 8))
         plt.plot(df['Loss'].to_numpy())
 
         # average loss per epoch
@@ -192,7 +196,11 @@ class Trainer:
         loss_avgs = [df[df['Epoch'] == epoch]['Loss'].mean() for epoch in df['Epoch'].unique()]
         plt.plot(np.array(last_indexes), np.array(loss_avgs), 'ro-')
         for idx, epoch in enumerate(df['Epoch'].unique()):
-            plt.text(last_indexes[idx]-100, loss_avgs[idx]+10, f'Avg Epoch{epoch}', fontsize=6)
+            plt.text(
+                last_indexes[idx]-20, loss_avgs[idx]+50, f'Avg Epoch{epoch}', 
+                fontsize=11,
+                rotation=60
+            )
 
         plt.title(f'Running loss for {str(self.model)} using {self.dataset_name}.')
         plt.xlabel('Mini-Batch')

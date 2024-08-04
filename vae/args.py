@@ -12,6 +12,7 @@ def load_args():
     parser.add_argument('--latent_size', type=int, default=768, required=False)
     parser.add_argument('--save_checkpoint_path', type=str, default='./', required=True)
     parser.add_argument('--load_checkpoint_path', type=str, default='./', required=False)
+    parser.add_argument('--save_training_loss_per_epoch', type=int, default=1, required=False)
     parser.add_argument('--save_every', type=int, default=5, required=False)
     parser.add_argument('--seed', type=int, default=0, required=False)
     

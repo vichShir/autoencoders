@@ -47,6 +47,7 @@ def main(args):
         args.save_checkpoint_path,
         args.load_checkpoint_path,
         args.save_every,
+        args.save_training_loss_per_epoch,
         args.seed,
     )
     trainer.fit(args.max_epochs, args.img_size)
