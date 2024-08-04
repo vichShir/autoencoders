@@ -17,7 +17,7 @@ def get_components(args):
     elif args.dataset == 'tinyhero':
         dataset_loader = TinyHero()
         C, H, W = 1, 64, 64
-    train_loader, test_loader = dataset_loader.load()
+    train_loader, valid_loader = dataset_loader.load()
     dataset_name = str(dataset_loader)
     args.img_size = C*H*W
     args.C = C
@@ -31,26 +31,30 @@ def get_components(args):
     # load optimizer
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 
-    return model, dataset_name, train_loader, test_loader, optimizer
+    return model, dataset_name, train_loader, valid_loader, optimizer
 
 
 def main(args):
-    model, dataset_name, train_loader, test_loader, optimizer = get_components(args)
+    model, dataset_name, train_loader, valid_loader, optimizer = get_components(args)
     
     trainer = Trainer(
         model,
         dataset_name,
         train_loader,
-        test_loader,
+        valid_loader,
         optimizer,
         vae_loss,
+        args.C,
+        args.H,
+        args.W,
         args.save_checkpoint_path,
         args.load_checkpoint_path,
         args.save_every,
         args.save_training_loss_per_epoch,
+        args.validate_every,
         args.seed,
     )
-    trainer.fit(args.max_epochs, args.img_size)
+    trainer.fit(args.max_epochs)
     trainer.plot_running_loss(save=True)
 
     n_samples = 64

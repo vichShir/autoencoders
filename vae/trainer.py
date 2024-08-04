@@ -15,21 +15,32 @@ class Trainer:
                  model,
                  dataset_name,
                  trainloader,
-                 testloader,
+                 validloader,
                  optimizer,
                  loss_fn,
+                 channels,
+                 height,
+                 width,
                  save_checkpoint_path='',
                  load_checkpoint_path='',
                  save_every=5,
                  save_training_loss_per_epoch=True,
+                 validate_every=5,
                  seed=0,
                  ):
         self.model = model
         self.dataset_name = dataset_name
         self.trainloader = trainloader
-        self.testloader = testloader
+        self.validloader = validloader
         self.optimizer = optimizer
         self.loss_fn = loss_fn
+        self.validate_every = validate_every
+
+        # image
+        self.C = channels
+        self.H = height
+        self.W = width
+        self.img_size = self.C * self.H * self.W
 
         # device
         self.is_cuda_available = torch.cuda.is_available()
@@ -49,11 +60,11 @@ class Trainer:
         self.save_training_loss_per_epoch = save_training_loss_per_epoch
         if os.path.exists(self.load_checkpoint_path):
             print(f'Restoring checkpoint from {self.load_checkpoint_path}...')
-            self.load_checkpoint()
+            self._load_checkpoint()
         else:
-            self.set_seed(seed)
+            self._set_seed(seed)
 
-    def set_seed(self, value):
+    def _set_seed(self, value):
         random.seed(value)
         np.random.seed(value)
         torch.manual_seed(value)
@@ -62,7 +73,7 @@ class Trainer:
             torch.cuda.manual_seed_all(value)
         print(f'[Trainer] Defined seed to {value}.')
 
-    def load_checkpoint(self):
+    def _load_checkpoint(self):
         # model checkpoint
         ckpt_dict = torch.load(self.load_checkpoint_path, map_location=self.device)
 
@@ -94,7 +105,7 @@ class Trainer:
         self.start_epoch = ckpt_dict['last_epoch'] + 1
         print(f'Resuming training checkpoint at epoch {self.start_epoch}.')
 
-    def save_checkpoint(self, epoch):
+    def _save_checkpoint(self, epoch):
         # save RNG states
         rng_dict = dict()
         rng_dict['python_state'] = random.getstate()
@@ -122,15 +133,25 @@ class Trainer:
         torch.save(optim_dict, os.path.join(self.save_checkpoint_path, 'OPTIMIZER_STATES.pt'))  # optimizer states
         print(f'Training saved at {model_ckpt_path}.')
 
-    def fit(self, max_epochs=30, img_size=728):
+    def fit(self, max_epochs=30):
         self.track_losses = []
         for epoch in range(self.start_epoch, max_epochs+1):
-            epoch_loss = self.run_epoch(epoch, img_size)
+            # train epoch
+            epoch_loss = self._run_epoch(epoch)
             self.track_losses.append(epoch_loss)
-            if epoch % self.save_every == 0 or epoch == max_epochs:
-                self.save_checkpoint(epoch)
 
-    def run_epoch(self, epoch, img_size):
+            # checkpoint
+            if epoch % self.save_every == 0 or epoch == max_epochs:
+                self._save_checkpoint(epoch)
+
+            # validation
+            if epoch % self.validate_every == 0:
+                print('Validating...')
+                val_loss, (real_imgs, recon_imgs) = self._run_validation()
+                print('Validation Average Loss: {:.4f}'.format(val_loss))
+                self._log_images(epoch, real_imgs, recon_imgs)
+
+    def _run_epoch(self, epoch):
         self.model.train()
 
         # track loss
@@ -140,7 +161,7 @@ class Trainer:
         for img_batch, _ in tqdm(self.trainloader):
             # run mini-batch
             img_batch = img_batch.to(self.device)
-            train_loss = self.run_batch(img_batch, img_size)
+            train_loss = self._run_batch(img_batch)
 
             # append loss
             loss_list = pd.concat(
@@ -168,21 +189,43 @@ class Trainer:
 
         return loss_list
 
-    def run_batch(self, img_batch, img_size):
+    def _run_batch(self, img_batch):
         self.optimizer.zero_grad()
-
-        # import ipdb; ipdb.set_trace()
-        # plt.imshow(data[random.randint(0, len(data))].cpu().numpy()); plt.show()
-        
         recon_batch, mu, log_var = self.model(img_batch)
-        loss = self.loss_fn(recon_batch, img_batch, mu, log_var, img_size) / len(img_batch)
-
-        # plt.imshow(recon_batch[random.randint(0, len(img_batch))].view(64, 64, 3).detach().cpu().numpy()); plt.show()
-        
+        loss = self.loss_fn(recon_batch, img_batch, mu, log_var, self.img_size) / len(img_batch)
         loss.backward()
         self.optimizer.step()
-            
         return loss.item()
+    
+    def _run_validation(self):
+        self.model.eval()
+        real_imgs = []
+        recon_imgs = []
+        val_losses = []
+        with torch.no_grad():
+            for img_batch, _ in tqdm(self.validloader):
+                img_batch = img_batch.to(self.device)
+                recon_batch, mu, log_var = self.model(img_batch)
+                val_loss = self.loss_fn(recon_batch, img_batch, mu, log_var, self.img_size) / len(img_batch)
+                real_imgs.append(recon_batch)
+                recon_imgs.append(recon_batch)
+                val_losses.append(val_loss.item())
+        real_imgs = torch.cat(real_imgs, axis=0)
+        recon_imgs = torch.cat(recon_imgs, axis=0)
+        loss_avg = sum(val_losses) / len(val_losses)
+        return loss_avg, (real_imgs, recon_imgs)
+    
+    def _log_images(self, epoch, real_images, recon_images):
+        N = real_images.shape[0]
+        sample_idx = random.randint(0, N)
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+        fig.suptitle(f'Comparing Real vs Reconstructed images from sample at {sample_idx}.')
+        ax1.imshow(real_images[sample_idx].view(64, 64).cpu().numpy())
+        ax1.set_title('Real')
+        ax2.imshow(recon_images[sample_idx].view(64, 64).cpu().numpy())
+        ax2.set_title('Reconstructed')
+        plt.savefig(os.path.join(self.save_checkpoint_path, f'log_image_epoch{epoch}.png'), bbox_inches='tight')
+        plt.close(fig)
     
     def plot_running_loss(self, save=True):
         df = pd.concat(self.track_losses, axis=0).reset_index(drop=True)
